@@ -1,11 +1,14 @@
 import argparse
 import sys
+from typing import Dict, List
 
 from src.config import Config, ConfigError, load_config
+from src.dot import to_dot
 from src.errors import RepositoryError
-from src.graph import build_dependency_graph, load_order
+from src.graph import build_dependency_graph
 from src.pypi import pypi_source
 from src.testrepo import load_test_repository
+from src.tree import render_tree
 
 
 def main() -> int:
@@ -24,14 +27,16 @@ def main() -> int:
     except RepositoryError as exc:
         print("error: " + str(exc), file=sys.stderr)
         return 1
-    _print_order(graph)
+    if config.ascii_tree:
+        _print_tree(graph, config.package)
+        print()
+    print(to_dot(graph))
     return 0
 
 
-def _print_order(graph) -> None:
-    order = load_order(graph)
-    for position, name in enumerate(order, start=1):
-        print(f"{position}. {name}")
+def _print_tree(graph: Dict[str, List[str]], root: str) -> None:
+    for line in render_tree(graph, root):
+        print(line)
 
 
 def _make_source(config: Config):
