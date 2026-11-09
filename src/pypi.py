@@ -7,7 +7,11 @@ import urllib.request
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
+from src.errors import RepositoryError
+from src.graph import DependencySource
+
 HTTP_TIMEOUT = 15
+HTTP_NOT_FOUND = 404
 USER_AGENT = "pip-dependency-graph/0.1"
 NAME_PATTERN = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
 MARKER_CLAUSE = re.compile(
@@ -25,14 +29,30 @@ COMPARE = {
 }
 
 
-class RepositoryError(Exception):
-    pass
-
-
 def fetch_direct_dependencies(
     repository: str, package: str, version: str
 ) -> List[str]:
     url = build_metadata_url(repository, package, version)
+    return _names_from_metadata(url)
+
+
+def fetch_latest_direct_dependencies(repository: str,
+                                     package: str) -> List[str]:
+    base = repository.rstrip("/")
+    return _names_from_metadata(f"{base}/{quote(package, safe='')}/json")
+
+
+def pypi_source(repository: str, root: str,
+                version: str) -> DependencySource:
+    def get_dependencies(package: str) -> List[str]:
+        if package == root:
+            return fetch_direct_dependencies(repository, package, version)
+        return fetch_latest_direct_dependencies(repository, package)
+
+    return get_dependencies
+
+
+def _names_from_metadata(url: str) -> List[str]:
     data = _http_get_json(url)
     info = data.get("info")
     if not isinstance(info, dict):
@@ -58,7 +78,7 @@ def _http_get_json(url: str) -> Dict[str, Any]:
         with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT) as resp:
             payload = resp.read()
     except urllib.error.HTTPError as exc:
-        if exc.code == 404:
+        if exc.code == HTTP_NOT_FOUND:
             raise RepositoryError("package or version not found: " + url)
         raise RepositoryError(f"repository returned HTTP {exc.code}: {url}")
     except urllib.error.URLError as exc:
@@ -95,10 +115,10 @@ def _parse_requirement_line(line: str) -> Optional[str]:
 
 
 def _split_marker(line: str) -> Tuple[str, Optional[str]]:
-    parts = line.split(";", 1)
-    if len(parts) == 1:
+    if ";" not in line:
         return line, None
-    return parts[0].strip(), parts[1].strip()
+    requirement, marker = line.split(";", 1)
+    return requirement.strip(), marker.strip()
 
 
 def _is_marker_active(marker: str) -> bool:
