@@ -1,8 +1,8 @@
 {
-  "package": "A",
-  "repository": "tests/fixtures/repo.txt",
-  "test_mode": true,
-  "version": "1.0",
+  "package": "requests",
+  "repository": "https://pypi.org/pypi",
+  "test_mode": false,
+  "version": "2.32.0",
   "ascii_tree": false,
   "filter": ""
 }

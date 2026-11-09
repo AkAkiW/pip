@@ -1,7 +1,8 @@
 import argparse
 import sys
 
-from src.config import Config, ConfigError, load_config
+from src.config import ConfigError, load_config
+from src.pypi import RepositoryError, fetch_direct_dependencies
 
 
 def main() -> int:
@@ -12,7 +13,18 @@ def main() -> int:
     except ConfigError as exc:
         print("error: " + str(exc), file=sys.stderr)
         return 2
-    _print_config(config)
+    if config.test_mode:
+        print("error: test mode is not implemented yet", file=sys.stderr)
+        return 2
+    try:
+        dependencies = fetch_direct_dependencies(
+            config.repository, config.package, config.version
+        )
+    except RepositoryError as exc:
+        print("error: " + str(exc), file=sys.stderr)
+        return 1
+    for name in dependencies:
+        print(name)
     return 0
 
 
@@ -27,23 +39,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="path to the JSON configuration file",
     )
     return parser
-
-
-def _print_config(config: Config) -> None:
-    values = {
-        "package": config.package,
-        "repository": config.repository,
-        "test_mode": _json_bool(config.test_mode),
-        "version": config.version,
-        "ascii_tree": _json_bool(config.ascii_tree),
-        "filter": config.filter,
-    }
-    for key, value in values.items():
-        print(f"{key}={value}")
-
-
-def _json_bool(value: bool) -> str:
-    return "true" if value else "false"
 
 
 if __name__ == "__main__":
